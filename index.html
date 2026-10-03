@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Zile Gece Korkusu 🌙</title>
     <style>
         body {
@@ -13,6 +13,7 @@
             font-family: 'Courier New', Courier, monospace;
             color: #fff;
             user-select: none;
+            -webkit-user-select: none;
         }
         #ui {
             position: absolute;
@@ -20,9 +21,11 @@
             left: 20px;
             z-index: 10;
             background: rgba(0, 0, 0, 0.7);
-            padding: 15px;
+            padding: 12px;
             border-radius: 8px;
             border: 1px solid #333;
+            font-size: 14px;
+            pointer-events: none;
         }
         #crosshair {
             position: absolute;
@@ -34,35 +37,74 @@
             background-color: rgba(255, 255, 255, 0.6);
             border-radius: 50%;
             z-index: 10;
+            pointer-events: none;
         }
         #message {
             position: absolute;
-            bottom: 40px;
+            bottom: 120px;
             width: 100%;
             text-align: center;
-            font-size: 20px;
+            font-size: 16px;
             color: #ff3333;
             text-shadow: 0 0 10px #ff0000;
             z-index: 10;
+            pointer-events: none;
         }
+        /* Mobil Kontrol Butonları */
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 20;
+            display: grid;
+            grid-template-columns: 60px 60px 60px;
+            grid-template-rows: 60px 60px;
+            gap: 5px;
+        }
+        .ctrl-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            font-size: 20px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+            outline: none;
+            cursor: pointer;
+        }
+        .ctrl-btn:active {
+            background: rgba(255, 255, 255, 0.4);
+        }
+        #btn-up { grid-column: 2; grid-row: 1; }
+        #btn-left { grid-column: 1; grid-row: 2; }
+        #btn-down { grid-column: 2; grid-row: 2; }
+        #btn-right { grid-column: 3; grid-row: 2; }
     </style>
 </head>
 <body>
 
     <div id="ui">
         <h3>Zile Sokakları 🏚️</h3>
-        <p>Yön Tuşları / WASD: Hareket Et</p>
-        <p>Fare: Etrafa Bak</p>
-        <p>Görev: Eski Konağın Anahtarını Bul! 🔑</p>
+        <p>Bilgisayar: WASD / Oklar</p>
+        <p>Mobil: Ekran Tuşları & Dokunmatik Bakış</p>
     </div>
 
     <div id="crosshair"></div>
     <div id="message">Sis basıyor... Dikkatli ol, Pistachio! 🌫️</div>
 
+    <!-- Mobil Yön Tuşları -->
+    <div class="controls">
+        <button class="ctrl-btn" id="btn-up">⬆️</button>
+        <button class="ctrl-btn" id="btn-left">⬅️</button>
+        <button class="ctrl-btn" id="btn-down">⬇️</button>
+        <button class="ctrl-btn" id="btn-right">➡️</button>
+    </div>
+
     <!-- Three.js Kütüphanesi -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // Sahne, Kamera ve Renderer Kurulumu
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x020205);
         scene.fog = new THREE.FogExp2(0x050510, 0.08);
@@ -75,7 +117,6 @@
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // Işıklandırma (Karanlık ve Korku Atmosferi)
         const ambientLight = new THREE.AmbientLight(0x111122, 0.5);
         scene.add(ambientLight);
 
@@ -86,14 +127,12 @@
         camera.add(flashlight.target);
         scene.add(camera);
 
-        // Zemin (Kaldırım)
         const floorGeo = new THREE.PlaneGeometry(100, 100);
         const floorMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 });
         const floor = new THREE.Mesh(floorGeo, floorMat);
         floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
 
-        // Eski Zile Konakları (Basit Duvarlar ve Binalar)
         const buildingMat = new THREE.MeshStandardMaterial({ color: 0x2b2521, roughness: 0.8 });
         for (let i = -30; i <= 30; i += 10) {
             if (i === 0) continue;
@@ -107,11 +146,11 @@
             scene.add(buildingOpposite);
         }
 
-        // Kontroller ve Hareket Değişkenleri
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
 
+        // Klavye Kontrolleri
         document.addEventListener('keydown', (e) => {
             switch (e.code) {
                 case 'KeyW': case 'ArrowUp': moveForward = true; break;
@@ -130,22 +169,51 @@
             }
         });
 
-        // Fare ile Bakış (Pointer Lock)
-        document.addEventListener('click', () => {
-            document.body.requestPointerLock();
+        // Mobil Buton Kontrolleri
+        function bindTouchButton(id, actionIn, actionOut) {
+            const btn = document.getElementById(id);
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); actionIn(); });
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); actionOut(); });
+            btn.addEventListener('mousedown', () => { actionIn(); });
+            btn.addEventListener('mouseup', () => { actionOut(); });
+        }
+
+        bindTouchButton('btn-up', () => moveForward = true, () => moveForward = false);
+        bindTouchButton('btn-down', () => moveBackward = true, () => moveBackward = false);
+        bindTouchButton('btn-left', () => moveLeft = true, () => moveLeft = false);
+        bindTouchButton('btn-right', () => moveRight = true, () => moveRight = false);
+
+        // Fare ve Dokunmatik Bakış (Kamera Dönüşü)
+        let isDragging = false;
+        let previousTouchX = 0;
+
+        document.addEventListener('mousedown', () => isDragging = true);
+        document.addEventListener('mouseup', () => isDragging = false);
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging || document.pointerLockElement === document.body) {
+                const movementX = e.movementX || e.clientX - previousTouchX || 0;
+                camera.rotation.y -= movementX * 0.003;
+            }
+            previousTouchX = e.clientX;
         });
 
-        document.addEventListener('mousemove', (e) => {
-            if (document.pointerLockElement === document.body) {
-                const movementX = e.movementX || e.mozMovementX || 0;
-                const movementY = e.movementY || e.mozMovementY || 0;
-                camera.rotation.y -= movementX * 0.002;
+        document.addEventListener('touchstart', (e) => {
+            if(e.touches.length === 1 && e.target.tagName !== 'BUTTON') {
+                isDragging = true;
+                previousTouchX = e.touches[0].clientX;
+            }
+        });
+        document.addEventListener('touchend', () => isDragging = false);
+        document.addEventListener('touchmove', (e) => {
+            if (isDragging && e.touches.length === 1) {
+                const touchX = e.touches[0].clientX;
+                const movementX = touchX - previousTouchX;
+                camera.rotation.y -= movementX * 0.003;
+                previousTouchX = touchX;
             }
         });
 
-        // Animasyon ve Oyun Döngüsü
         let prevTime = performance.now();
-        const clock = new THREE.Clock();
 
         function animate() {
             requestAnimationFrame(animate);
@@ -166,7 +234,6 @@
             camera.translateX(velocity.x);
             camera.translateZ(velocity.z);
 
-            // Kamerayı sınırda tut
             camera.position.x = Math.max(-4, Math.min(4, camera.position.x));
 
             prevTime = time;
@@ -175,7 +242,6 @@
 
         animate();
 
-        // Pencere Boyutu Ayarı
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
